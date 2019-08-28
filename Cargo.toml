@@ -1,0 +1,14 @@
+[package]
+name = "battletest"
+version = "0.1.0"
+authors = ["royalmustard <36129876+royalmustard@users.noreply.github.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde_json = "1.0.40"
+serde = { version = "1.0", features = ["derive"] }
+rand = "0.7.0"
+serde_derive = "1.0.99"
+d20 = "0.1.0"

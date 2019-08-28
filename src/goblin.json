@@ -1,0 +1,22 @@
+{
+  "name": "Goblin",
+  "ac": 15,
+  "hp": 7,
+  "stats": [8, 14, 10, 10, 8, 8],
+  "mods": [-1, 2, 0, 0, -1, -1],
+  "attacks":
+  [
+      {
+          "name": "Scimitar",
+          "damage": "1d6+2",
+          "bonus": 4,
+          "dtype": "PIERCING"
+      }
+  ],
+  "cr": 0.25,
+  "resist": [],
+  "weakness": [],
+  "dead": false,
+  "initiative": 0,
+  "team": 0
+}
