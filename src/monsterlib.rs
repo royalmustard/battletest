@@ -1,14 +1,13 @@
 use d20;
 use serde::{Deserialize, Serialize};
-use serde_json::Result;
 use std::fs::File;
 use std::path::Path;
 use rand::seq::SliceRandom;
-
+use rand::seq::IteratorRandom;
 
 #[derive(Serialize, Deserialize)]
 #[derive(PartialEq, Copy, Clone, Debug)]
-pub enum Damage_Type
+pub enum DamageType
 {
     ACID,
     BLUDGEOONING,
@@ -37,8 +36,8 @@ pub struct Monster
     pub mods: [i8; 6],
     pub attacks: Vec<Attack>,
     pub cr: f32,
-    pub resist: Vec<Damage_Type>,
-    pub weakness: Vec<Damage_Type>,
+    pub resist: Vec<DamageType>,
+    pub weakness: Vec<DamageType>,
     pub dead: bool,
     pub initiative: u8,
     pub team: u8
@@ -50,12 +49,12 @@ pub struct Attack
     pub name: String,
     pub damage: String,
     pub bonus: u8,
-    pub dtype: Damage_Type
+    pub dtype: DamageType
 }
 
 impl Monster
 {
-    pub fn take_damage(&mut self, mut dmg: i32,tp: &Damage_Type)
+    pub fn take_damage(&mut self, mut dmg: i32,tp: &DamageType)
     {
         if self.resist.contains(&tp)
         {
@@ -71,19 +70,13 @@ impl Monster
         }
     }
 
-    pub fn attack(&mut self, enemies: &mut Vec<&mut Monster>)
+    pub fn attack(&mut self, e:&mut Monster)
     {
-        for e in enemies
+
+        let atk = self.attacks.choose(&mut rand::thread_rng()).unwrap();
+        if roll(&format!("d20 + {}", atk.bonus)) as u8 >= e.ac
         {
-            if !e.dead
-            {
-                let atk = self.attacks.choose(&mut rand::thread_rng()).unwrap();
-                if roll(&format!("d20 + {}", atk.bonus)) as u8 >= e.ac
-                {
-                    e.take_damage(d20::roll_dice(&atk.damage).unwrap().total, &atk.dtype);
-                }
-                break;
-            }
+            e.take_damage(d20::roll_dice(&atk.damage).unwrap().total, &atk.dtype);
         }
     }
 
@@ -93,83 +86,62 @@ impl Monster
     }
 }
 
-#[derive(Debug)]
-pub struct Team
-{
-    pub mobs: Vec<Monster>
-}
 
-impl Team
-{
-    pub fn is_defeated(&mut self) -> bool
-    {
-        for m in &self.mobs
-        {
-            if !m.dead
-            {
-                return false;
-            }
-        }
-        true
-    }
-}
 
-pub struct Arena<'a>
+pub struct Arena
 {
-    pub Team1: Team,
-    pub Team2: Team,
-    mbi: Vec<&'a mut Monster>,
+    mbi: Vec<Monster>,
     pub iterations: u32,
 }
 
-impl Arena<'_>
+impl Arena
 {
+    pub fn new(mut t1: Vec<Monster>, mut t2: Vec<Monster>, iterations: u32) -> Arena
+    {
+        t1.iter_mut().for_each(|m| m.team=1);
+        t2.iter_mut().for_each(|m| m.team=2);
+        let mut a: Arena = Arena{
+            mbi: vec![t1, t2].concat(),
+            iterations: iterations
+        };
+        a.begin();
+        a
+    }
+
     pub fn fight(&mut self)
     {
+        self.begin();
         let mut wins: [u32; 2] = [0,0];
         for _i in 0..self.iterations
         {
             //Check for Winner
-            if self.Team1.is_defeated()
+            if !(self.mbi.iter().filter(|m| m.team == 1 && !m.dead).count() > 0)
             {
+                //Team 1 lost
                 wins[1] +=1;
-                println!("2 wins");
-                self.reset_teams();
+                self.reset();
             }
-            else if self.Team2.is_defeated()
+            else if !(self.mbi.iter().filter(|m| m.team == 2 && !m.dead).count() > 0)
             {
+                //Team 2 lost
                 wins[0] += 1;
-                println!("1 wins");
-                self.reset_teams();
+                self.reset();
             }
             //FIGHT!
-            for m in &mut self.mbi
+            for i in 0..self.mbi.len()
             {
-                let mut target_team: u8 = 1;
-                if m.team == 1
-                {
-                    target_team = 2;
-                }
+                let team = self.mbi[i].team;
+                let e:&mut Monster= &mut self.mbi.iter_mut().filter(|mo| mo.team != team).choose(&mut rand::thread_rng()).unwrap();
+                self.mbi[i].attack(&mut e);
             }
+
         }
         self.eval(&wins)
     }
 
-    fn begin<'a>(&'a mut self)
+    pub fn begin(&mut self)
     {
-        for m1 in &mut self.Team1.mobs
-        {
-            m1.roll_init();
-            m1.team=1;
-        }
-        for m2 in &mut self.Team2.mobs
-        {
-            m2.roll_init();
-            m2.team = 2;
-        }
-        println!("{:?}", self.Team1);
-        self.mbi.append(&mut self.Team1.mobs.iter_mut().collect::<Vec<&mut Monster>>());
-        self.mbi.append(&mut self.Team2.mobs.iter_mut().collect::<Vec<&mut Monster>>());
+        self.mbi.iter_mut().for_each(|m| m.roll_init());
         self.mbi.sort_by(|a, b| a.initiative.cmp(&b.initiative))
     }
 
@@ -179,16 +151,13 @@ impl Arena<'_>
         println!("Team 2 wins: {}", wins[1]);
     }
 
-    fn reset_teams(&mut self)
+    fn reset(&mut self)
     {
-        for m in self.Team1.mobs
+        for m in &mut self.mbi
         {
             m.hp = m.max_hp as i32;
         }
-        for m in self.Team2.mobs
-        {
-            m.hp = m.max_hp as i32;
-        }
+        self.begin();
     }
 }
 
