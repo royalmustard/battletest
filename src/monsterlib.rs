@@ -52,8 +52,23 @@ pub struct Attack
     pub dtype: DamageType
 }
 
+pub struct AttackResult
+{
+    pub to_hit: u8,
+    pub dtype: DamageType,
+    pub damage: i32
+}
+
 impl Monster
 {
+    pub fn take_attack(&mut self, ar: AttackResult)
+    {
+        if ar.to_hit >= self.ac
+        {
+            self.take_damage(ar.damage, &ar.dtype)
+        }
+    }
+
     pub fn take_damage(&mut self, mut dmg: i32,tp: &DamageType)
     {
         if self.resist.contains(&tp)
@@ -70,13 +85,23 @@ impl Monster
         }
     }
 
-    pub fn attack(&mut self, e:&mut Monster)
+    pub fn attack(&mut self, adv: i8) -> AttackResult
     {
-
         let atk = self.attacks.choose(&mut rand::thread_rng()).unwrap();
-        if roll(&format!("d20 + {}", atk.bonus)) as u8 >= e.ac
+        let droll = match adv{
+            1 => *vec![roll(&format!("d20")), roll(&format!("d20"))].iter().max().unwrap(),
+            -1 => *vec![roll(&format!("d20")), roll(&format!("d20"))].iter().min().unwrap(),
+            _ => roll(&format!("d20"))
+        };
+        let damage : i32 = match droll{
+            20 => roll(&atk.damage) + roll(&atk.damage),
+            _ => roll(&atk.damage)
+        };
+        AttackResult
         {
-            e.take_damage(d20::roll_dice(&atk.damage).unwrap().total, &atk.dtype);
+            to_hit: droll as u8+atk.bonus,
+            damage: damage,
+            dtype: atk.dtype
         }
     }
 
@@ -128,13 +153,23 @@ impl Arena
                 self.reset();
             }
             //FIGHT!
+
             for i in 0..self.mbi.len()
             {
-                let team = self.mbi[i].team;
-                let e:&mut Monster= &mut self.mbi.iter_mut().filter(|mo| mo.team != team).choose(&mut rand::thread_rng()).unwrap();
-                self.mbi[i].attack(&mut e);
-            }
+                if !self.mbi[0].dead
+                {
+                    let res = self.mbi[i].attack(0);
+                    let team = self.mbi[i].team;
+                    let e= &mut self.mbi.iter_mut().filter(|mo| mo.team != team && !mo.dead).choose(&mut rand::thread_rng());
+                    match e{
+                        Some(e) => e.take_attack(res),
+                        _ => {}
 
+                    }
+                }
+
+            }
+            println!("{}", _i)
         }
         self.eval(&wins)
     }
