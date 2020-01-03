@@ -182,8 +182,8 @@ impl Arena
         self.mbi.iter_mut().for_each(|m| m.roll_init());
         self.mbi.sort_by(|a, b| b.initiative.cmp(&a.initiative));
         //Dbg
-        self.mbi.iter().for_each(|m| println!("{}|{}", m.team, m.initiative));
-        println!("-----------------")
+        //self.mbi.iter().for_each(|m| println!("{}|{}", m.team, m.initiative));
+        //println!("-----------------")
     }
 
 
@@ -192,6 +192,7 @@ impl Arena
         for m in &mut self.mbi
         {
             m.hp = m.max_hp as i32;
+            m.dead = false;
         }
         self.begin();
     }
