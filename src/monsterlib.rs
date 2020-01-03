@@ -4,6 +4,7 @@ use std::fs::File;
 use std::path::Path;
 use rand::seq::SliceRandom;
 use rand::seq::IteratorRandom;
+use pbr::ProgressBar;
 
 #[derive(Serialize, Deserialize)]
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -136,6 +137,8 @@ impl Arena
 
     pub fn fight(&mut self)
     {
+        let mut pb = ProgressBar::new(self.iterations as u64);
+        pb.format("|-#|");
         self.begin();
         let mut wins: [u32; 2] = [0,0];
         for _i in 0..self.iterations
@@ -172,7 +175,9 @@ impl Arena
                         }
                     }
                 }
-        }
+
+            }
+            pb.inc();
         }
         self.eval(&wins)
     }
