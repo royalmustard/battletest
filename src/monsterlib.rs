@@ -69,7 +69,7 @@ impl Monster
         }
     }
 
-    pub fn take_damage(&mut self, mut dmg: i32,tp: &DamageType)
+    fn take_damage(&mut self, mut dmg: i32,tp: &DamageType)
     {
         if self.resist.contains(&tp)
         {
@@ -88,11 +88,13 @@ impl Monster
     pub fn attack(&mut self, adv: i8) -> AttackResult
     {
         let atk = self.attacks.choose(&mut rand::thread_rng()).unwrap();
+        //Check Advantage
         let droll = match adv{
-            1 => *vec![roll(&format!("d20")), roll(&format!("d20"))].iter().max().unwrap(),
-            -1 => *vec![roll(&format!("d20")), roll(&format!("d20"))].iter().min().unwrap(),
-            _ => roll(&format!("d20"))
+            1 => *vec![roll(&format!("1d20")), roll(&format!("1d20"))].iter().max().unwrap(),
+            -1 => *vec![roll(&format!("1d20")), roll(&format!("1d20"))].iter().min().unwrap(),
+            _ => roll(&format!("1d20"))
         };
+        //Check Crit
         let damage : i32 = match droll{
             20 => roll(&atk.damage) + roll(&atk.damage),
             _ => roll(&atk.damage)
@@ -107,7 +109,7 @@ impl Monster
 
     pub fn roll_init(&mut self)
     {
-        self.initiative = roll(&format!("d20 + {}", self.mods[1])) as u8;
+        self.initiative = roll(&format!("1d20 + {}", self.mods[1])) as u8;
     }
 }
 
@@ -125,11 +127,10 @@ impl Arena
     {
         t1.iter_mut().for_each(|m| m.team=1);
         t2.iter_mut().for_each(|m| m.team=2);
-        let mut a: Arena = Arena{
+        let a: Arena = Arena{
             mbi: vec![t1, t2].concat(),
             iterations: iterations
         };
-        a.begin();
         a
     }
 
@@ -139,37 +140,39 @@ impl Arena
         let mut wins: [u32; 2] = [0,0];
         for _i in 0..self.iterations
         {
-            //Check for Winner
-            if !(self.mbi.iter().filter(|m| m.team == 1 && !m.dead).count() > 0)
+            loop
             {
-                //Team 1 lost
-                wins[1] +=1;
-                self.reset();
-            }
-            else if !(self.mbi.iter().filter(|m| m.team == 2 && !m.dead).count() > 0)
-            {
-                //Team 2 lost
-                wins[0] += 1;
-                self.reset();
-            }
-            //FIGHT!
-
-            for i in 0..self.mbi.len()
-            {
-                if !self.mbi[0].dead
+                //Check for Winner
+                if self.mbi.iter().filter(|m| m.team == 1 && !m.dead).count() <1
                 {
-                    let res = self.mbi[i].attack(0);
-                    let team = self.mbi[i].team;
-                    let e= &mut self.mbi.iter_mut().filter(|mo| mo.team != team && !mo.dead).choose(&mut rand::thread_rng());
-                    match e{
-                        Some(e) => e.take_attack(res),
-                        _ => {}
+                    //Team 1 lost
+                    wins[1] +=1;
+                    self.reset();
+                    break;
+                }
+                else if self.mbi.iter().filter(|m| m.team == 2 && !m.dead).count() <1
+                {
+                    //Team 2 lost
+                    wins[0] += 1;
+                    self.reset();
+                    break;
+                }
+                //FIGHT!
 
+                for i in 0..self.mbi.len()
+                {
+                    if !self.mbi[i].dead
+                    {
+                        let res = self.mbi[i].attack(0);
+                        let team = self.mbi[i].team;
+                        let e= self.mbi.iter_mut().filter(|mo| mo.team != team && !mo.dead).choose(&mut rand::thread_rng());
+                        match e{
+                            Some(e) => e.take_attack(res),
+                            _ => break
+                        }
                     }
                 }
-
-            }
-            println!("{}", _i)
+        }
         }
         self.eval(&wins)
     }
@@ -177,14 +180,12 @@ impl Arena
     pub fn begin(&mut self)
     {
         self.mbi.iter_mut().for_each(|m| m.roll_init());
-        self.mbi.sort_by(|a, b| a.initiative.cmp(&b.initiative))
+        self.mbi.sort_by(|a, b| b.initiative.cmp(&a.initiative));
+        //Dbg
+        self.mbi.iter().for_each(|m| println!("{}|{}", m.team, m.initiative));
+        println!("-----------------")
     }
 
-    fn eval(&mut self, wins: &[u32; 2])
-    {
-        println!("Team 1 wins: {}", wins[0]);
-        println!("Team 2 wins: {}", wins[1]);
-    }
 
     fn reset(&mut self)
     {
@@ -194,12 +195,14 @@ impl Arena
         }
         self.begin();
     }
+
+    fn eval(&mut self,wins: &[u32; 2])
+    {
+        println!("Team 1 wins: {}", wins[0]);
+        println!("Team 2 wins: {}", wins[1]);
+    }
 }
 
-pub struct FightResult
-{
-
-}
 
 pub fn roll(rl: &String) -> i32
 {
