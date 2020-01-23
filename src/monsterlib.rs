@@ -4,7 +4,9 @@ use std::fs::File;
 use std::path::Path;
 use rand::seq::SliceRandom;
 use rand::seq::IteratorRandom;
-use pbr::ProgressBar;
+use pbr::MultiBar;
+use std::sync::mpsc;
+use std::thread;
 
 #[derive(Serialize, Deserialize)]
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -124,7 +126,7 @@ pub struct Arena
 
 impl Arena
 {
-    pub fn new(mut t1: Vec<Monster>, mut t2: Vec<Monster>, iterations: u32) -> Arena
+    fn new(mut t1: Vec<Monster>, mut t2: Vec<Monster>, iterations: u32) -> Arena
     {
         t1.iter_mut().for_each(|m| m.team=1);
         t2.iter_mut().for_each(|m| m.team=2);
@@ -135,10 +137,10 @@ impl Arena
         a
     }
 
-    pub fn fight(&mut self)
+
+
+    fn fight(&mut self,mut pb: pbr::ProgressBar<pbr::Pipe>) -> [u32; 2]
     {
-        let mut pb = ProgressBar::new(self.iterations as u64);
-        pb.format("|-#|");
         self.begin();
         let mut wins: [u32; 2] = [0,0];
         for _i in 0..self.iterations
@@ -179,7 +181,8 @@ impl Arena
             }
             pb.inc();
         }
-        self.eval(&wins)
+        pb.finish();
+        wins
     }
 
     pub fn begin(&mut self)
@@ -202,11 +205,13 @@ impl Arena
         self.begin();
     }
 
-    fn eval(&mut self,wins: &[u32; 2])
-    {
-        println!("Team 1 wins: {}", wins[0]);
-        println!("Team 2 wins: {}", wins[1]);
-    }
+
+}
+
+pub fn eval(wins: &[u32; 2])
+{
+    println!("Team 1 wins: {}", wins[0]);
+    println!("Team 2 wins: {}", wins[1]);
 }
 
 
@@ -222,4 +227,41 @@ pub fn get_monster_from_json(path: &str) -> Monster
     let json_file = File::open(json_file_path).expect("Monsterfile not found");
     let mon: Monster = serde_json::from_reader(json_file).expect("error while reading json");
     mon
+}
+
+pub fn fight_multithreaded(mut t1: Vec<Monster>, mut t2: Vec<Monster>, iterations: u32, nthreads: usize)
+{
+    let (sender, receiver): (mpsc::Sender<[u32;2]>, mpsc::Receiver<[u32;2]>) = mpsc::channel();
+    let mut wins: [u32;2] =[0, 0];
+
+    let mut mb = MultiBar::new();
+
+    for i in 0..nthreads
+    {
+        let mut pb = mb.create_bar((iterations/nthreads as u32) as u64);
+        let sender_n = sender.clone();
+        let mut arena_n = Arena::new(t1.clone(), t2.clone(), iterations/nthreads as u32);
+        thread::spawn(move || {
+            sender_n.send(arena_n.fight(pb));
+        });
+    }
+
+    thread::spawn(move || {
+        mb.listen()
+    });
+
+    let mut number_done = 0;
+
+    while number_done < nthreads
+    {
+        let result = receiver.recv().unwrap();
+        wins[0] += result[0];
+        wins[1] += result[1];
+        number_done +=1;
+
+    }
+
+    eval(&wins)
+
+
 }
